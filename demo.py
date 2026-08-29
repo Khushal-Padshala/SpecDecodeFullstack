@@ -1,4 +1,4 @@
-﻿"""
+"""
 Interactive CLI Demo for Speculative Decoding Backend.
 Allows typing any arbitrary prompt and viewing real-time generation with speculative metrics.
 """
@@ -80,9 +80,19 @@ def main():
     if args.prompt:
         run_prompt(args.prompt)
     else:
-        # Default prompt
-        default_p = "Explain how speculative decoding makes LLM inference faster in two sentences."
-        run_prompt(default_p)
+        print("Tip: You are in Interactive Mode. Type any prompt and press Enter (or type 'exit' to quit).\n")
+        while True:
+            try:
+                user_p = input("\nEnter your prompt >> ").strip()
+                if not user_p:
+                    continue
+                if user_p.lower() in ["exit", "quit", "q"]:
+                    print("Exiting demo. Goodbye!")
+                    break
+                run_prompt(user_p)
+            except (KeyboardInterrupt, EOFError):
+                print("\nExiting demo. Goodbye!")
+                break
 
 if __name__ == "__main__":
     main()
