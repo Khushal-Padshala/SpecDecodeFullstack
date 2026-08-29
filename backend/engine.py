@@ -1,4 +1,4 @@
-﻿"""
+"""
 Speculative Decoding Engine & Autoregressive Baseline Engine.
 Implements the multi-token propose-and-verify speculative loop with metric collection.
 """
@@ -27,18 +27,25 @@ class SpeculativeEngine:
         self.draft_model = draft_model
         self.eos_token_ids = eos_token_ids or [128000, 128001, 128009]
 
+    def _format_prompt(self, raw_prompt: str) -> str:
+        """Applies Llama 3.1 Instruct formatting if not already present."""
+        if "<|start_header_id|>" in raw_prompt:
+            return raw_prompt
+        return f"<|start_header_id|>user<|end_header_id|>\n\n{raw_prompt.strip()}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+
     def generate(self, req: GenerateRequest) -> GenerateResponse:
         """Executes full speculative or baseline generation for arbitrary user prompts."""
         t_start = time.perf_counter()
         
-        prompt_tokens = self.target_model.tokenize(req.prompt, add_bos=True)
+        formatted_prompt = self._format_prompt(req.prompt)
+        prompt_tokens = self.target_model.tokenize(formatted_prompt, add_bos=True)
         if not prompt_tokens:
             prompt_tokens = [128000]
 
         if not req.use_speculative:
             # Baseline target-only generation
             text, tokens, elapsed, tok_per_sec = self.target_model.generate_baseline(
-                prompt=req.prompt,
+                prompt=formatted_prompt,
                 max_tokens=req.max_tokens,
                 temperature=req.temperature
             )
@@ -135,13 +142,14 @@ class SpeculativeEngine:
     def generate_stream(self, req: GenerateRequest) -> Generator[StreamChunk, None, None]:
         """Yields token chunks in real-time with source tags for frontend rendering."""
         t_start = time.perf_counter()
-        prompt_tokens = self.target_model.tokenize(req.prompt, add_bos=True)
+        formatted_prompt = self._format_prompt(req.prompt)
+        prompt_tokens = self.target_model.tokenize(formatted_prompt, add_bos=True)
         if not prompt_tokens:
             prompt_tokens = [128000]
 
         if not req.use_speculative:
             text, tokens, elapsed, tok_per_sec = self.target_model.generate_baseline(
-                prompt=req.prompt,
+                prompt=formatted_prompt,
                 max_tokens=req.max_tokens,
                 temperature=req.temperature
             )
