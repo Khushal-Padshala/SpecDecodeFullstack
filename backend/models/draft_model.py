@@ -1,4 +1,4 @@
-﻿"""
+"""
 Enhanced Hybrid Draft Model Engine.
 Combines:
 1. Neural Draft Transformer (for semantic sequence modeling)
@@ -56,20 +56,19 @@ class DraftModelManager:
     def _find_ngram_proposals(self, prefix_token_ids: List[int], num_draft_tokens: int) -> List[int]:
         """
         Extracts candidate speculative tokens by matching n-gram patterns in the prefix.
-        Proven technique used in Prompt-Lookup Decoding for massive speedups in code, reasoning, and chat.
+        Prompt-Lookup Decoding (PLD) matches variable names, syntax patterns, and context tokens.
         """
         n = len(prefix_token_ids)
         if n < self.ngram_min + 1:
             return []
 
-        # Try longest match to shortest match
+        # Try longest match (5-gram) down to shortest match (2-gram)
         for ngram_len in range(min(self.ngram_max, n - 1), self.ngram_min - 1, -1):
             query = prefix_token_ids[-ngram_len:]
             
-            # Search for previous occurrences of this n-gram in the earlier context
+            # Search context history for identical n-gram occurrences
             for i in range(n - ngram_len - 1, -1, -1):
                 if prefix_token_ids[i:i + ngram_len] == query:
-                    # Found match! Candidate tokens follow this n-gram
                     candidate_start = i + ngram_len
                     candidates = prefix_token_ids[candidate_start: candidate_start + num_draft_tokens]
                     if candidates:
@@ -80,33 +79,33 @@ class DraftModelManager:
     def propose_tokens(
         self,
         prefix_token_ids: List[int],
-        num_draft_tokens: int = 4,
-        temperature: float = 0.0
+        num_draft_tokens: int = 3,
+        temperature: float = 0.0,
+        min_confidence: float = 0.22
     ) -> Tuple[List[int], float]:
         """
-        Proposes K draft tokens ahead using hybrid neural + context speculative decoding.
+        Proposes K draft tokens ahead using hybrid neural + context speculative decoding with confidence gating.
         """
         if not self.is_loaded or self.model is None:
             raise RuntimeError("Draft model is not loaded. Call load() first.")
 
         t0 = time.perf_counter()
         
-        # 1. Check for high-confidence Context N-Gram proposal
+        # 1. Check for exact context N-Gram match (Prompt-Lookup Decoding)
         ngram_candidates = self._find_ngram_proposals(prefix_token_ids, num_draft_tokens)
-        
-        if len(ngram_candidates) == num_draft_tokens:
+        if len(ngram_candidates) >= 2:
             elapsed = time.perf_counter() - t0
-            return ngram_candidates, elapsed
+            return ngram_candidates[:num_draft_tokens], elapsed
 
-        # 2. Fallback to Neural Draft Transformer forward pass
+        # 2. Neural Draft Transformer with Confidence-Gating
         inp = torch.tensor([prefix_token_ids[-256:]], dtype=torch.long, device=self.device)
         neural_candidates = self.model.propose_tokens(
             prefix_ids=inp,
             num_draft_tokens=num_draft_tokens,
-            temperature=temperature
+            temperature=temperature,
+            min_confidence=min_confidence
         )
 
-        # Merge n-gram prefix if partial match existed
         if ngram_candidates:
             combined = ngram_candidates + neural_candidates[len(ngram_candidates):]
             elapsed = time.perf_counter() - t0

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Custom Draft Transformer Decoder Architecture for Speculative Decoding.
 Vocabulary size: 128,256 (Identical to Meta Llama 3.1).
 Parameters: ~75M parameters with tied embedding & output LM head.
@@ -239,14 +239,14 @@ class DraftTransformer(nn.Module):
         self,
         prefix_ids: torch.Tensor,
         num_draft_tokens: int = 4,
-        temperature: float = 0.0
+        temperature: float = 0.0,
+        min_confidence: float = 0.22
     ) -> List[int]:
         """
         Generates K candidate draft tokens given the current token prefix.
-        Uses KV caching for fast sequential forward steps.
+        Uses KV caching for fast sequential forward steps with confidence-gated early stopping.
         """
         self.eval()
-        device = prefix_ids.device
         if prefix_ids.dim() == 1:
             prefix_ids = prefix_ids.unsqueeze(0)
 
@@ -255,15 +255,22 @@ class DraftTransformer(nn.Module):
         next_logit = logits[:, -1, :]
 
         draft_tokens = []
-        for _ in range(num_draft_tokens):
+        for step in range(num_draft_tokens):
+            probs = F.softmax(next_logit if temperature == 0.0 else (next_logit / temperature), dim=-1)
+            
             if temperature > 0.0:
-                probs = F.softmax(next_logit / temperature, dim=-1)
                 next_token = torch.multinomial(probs, num_samples=1)
+                conf = probs.gather(-1, next_token).squeeze().item()
             else:
-                next_token = torch.argmax(next_logit, dim=-1, keepdim=True)
+                conf, next_token = torch.max(probs, dim=-1, keepdim=True)
+                conf = conf.squeeze().item()
 
-            token_id = next_token.item()
+            token_id = next_token.squeeze().item()
             draft_tokens.append(token_id)
+
+            # Adaptive Drafting: If confidence drops below threshold on step >= 1, stop drafting
+            if step >= 1 and conf < min_confidence:
+                break
 
             # Fast step with cached KV
             logits, past_kv = self.forward(next_token, past_key_values=past_kv, use_cache=True)
