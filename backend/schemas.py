@@ -1,4 +1,4 @@
-﻿"""
+"""
 Pydantic data schemas for Speculative Decoding Backend API.
 """
 
@@ -10,11 +10,11 @@ class GenerateRequest(BaseModel):
     max_tokens: int = Field(default=128, ge=1, le=2048, description="Maximum new tokens to generate")
     temperature: float = Field(default=0.0, ge=0.0, le=2.0, description="Sampling temperature (0.0 for greedy)")
     use_speculative: bool = Field(default=True, description="Enable speculative decoding with draft model")
-    num_draft_tokens: int = Field(default=4, ge=1, le=16, description="Number of tokens proposed by draft model per cycle (K)")
+    num_draft_tokens: int = Field(default=2, ge=1, le=16, description="Number of tokens proposed by draft model per cycle (K)")
 
 class SpeculativeStats(BaseModel):
     enabled: bool = Field(default=True)
-    num_draft_tokens_k: int = Field(default=4)
+    num_draft_tokens_k: int = Field(default=2)
     draft_tokens_proposed: int = Field(default=0)
     draft_tokens_accepted: int = Field(default=0)
     draft_tokens_rejected: int = Field(default=0)

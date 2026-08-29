@@ -22,7 +22,7 @@ def main():
     parser = argparse.ArgumentParser(description="Interactive Speculative Decoding Demo")
     parser.add_argument("--prompt", type=str, default=None, help="Prompt to run")
     parser.add_argument("--max-tokens", type=int, default=64, help="Max tokens to generate")
-    parser.add_argument("--draft-k", type=int, default=4, help="Draft tokens per cycle (K)")
+    parser.add_argument("--draft-k", type=int, default=2, help="Draft tokens per cycle (K)")
     parser.add_argument("--stream", action="store_true", help="Stream tokens in real-time with source tags")
     args = parser.parse_args()
 
